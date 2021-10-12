@@ -33,7 +33,7 @@ function sampling(dataset,samples)
 end
 
 
-"""Gives kcluster of input dataset using Clustering.jl"""
+"""Gives mean of kcluster of input dataset using Clustering.jl"""
 function kcluster(dataset, samples) 
     result = []
     centers = (kmeans(reshape(dataset,1,length(dataset)),samples)).centers
