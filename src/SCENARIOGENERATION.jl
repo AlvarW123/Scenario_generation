@@ -1,6 +1,7 @@
 module SCENARIOGENERATION
 using Random
 using Clustering
+using LinearAlgebra
 
 export sampler, sampling, kclusterMethod, wassersteinCall
 
@@ -18,21 +19,21 @@ export sampler, sampling, kclusterMethod, wassersteinCall
     end
  end =#
 
- function searchsortednearest(a,x) 
+function searchsortednearest(a,x) 
     result = Dict()
     d = Inf
     akeys = keys(a)
     for i in akeys
-        if(abs(x-a[i])<d)
+        if abs(x-a[i])<d
             d = abs(x-a[i])
             result = i
         end
     end
-    println(result)
     result
  end
 
- function distanceBetweenPoints(dataset)
+ #=
+ function distanceBetweenPoints(dataset) #O time of n squared, problem
     distances = Dict()
     dkeys = keys(dataset)
     for i in dkeys
@@ -42,7 +43,7 @@ export sampler, sampling, kclusterMethod, wassersteinCall
     end
     distances
  end
- 
+ =#
 
 """Random Sampler v$(1) using Random.jl function"""
 sampler(dataset, samples) = rand(dataset,samples)    #Takes random input as vector v and return sample of size n, part of Random.jl package.
@@ -64,7 +65,7 @@ end
 function kclusterMethod(dataset, samples) 
     result = Dict()
     #new_dataset = sampling(dataset,samples)
-    centers = (kmeans(reshape(collect(values(dataset)),1,length(dataset)),samples)).centers
+    centers = (kmeans(reshape(convert.(Float,collect(values(dataset))),1,length(dataset)),samples)).centers
     for i in centers
         center = searchsortednearest(dataset,i) #returns closest real key.
         result[center] = dataset[center]
@@ -72,6 +73,7 @@ function kclusterMethod(dataset, samples)
     result
 end 
 
+#elects whether to call the function with a predefined probability table or not.
 wassersteinCall(dataset,samples,P,order) = (P ===  nothing) ?  wassersteinMethod(dataset,samples,createEqualProbability(dataset),order) : wassersteinMethod(dataset,samples,P,order) 
 
 function createEqualProbability(dataset)
@@ -82,56 +84,68 @@ function createEqualProbability(dataset)
     result
 end
 
+
 takeSum(a,b) = sum(abs(a.-b))
+
+distanceValue(a,b) = norm(a-b,1)
     
 function wassersteinMethod(dataset,samples,P,order) 
     z = []
     d = []
     v = []
     push!(z,sampling(dataset,samples))
-    distances = distanceBetweenPoints(dataset)
-    distanceFunc(a,b) = distances[(a,b)]
+    distances = Dict()
+    distanceFunc(a,b) = haskey(distances,(a,b)) ? distances[a,b] : (haskey(distances,(b,a)) ? distances[b,a] : push!(distances,(a,b)=> distanceValue(a,b))[a,b]) 
     probabilityFunc(a) = P[a]
-    function inner(k,d0)
-        push!(d,d0)
-        push!(v, Dict())
-        zkeys = keys(z[k])
-        dkeys = keys(dataset)
-        for i in dkeys
-            current_min = Inf
-            key = nothing
-            for j in zkeys
-                if distances[(i,j)] < current_min
-                    current_min = distances[(i,j)]
-                    key = j
+    function inner(k1,d00)
+        k = k1
+        d0 = d00
+        isTrue = true
+        while isTrue
+            push!(d,d0)
+            push!(v, Dict())
+            zkeys = keys(z[k])
+            dkeys = keys(dataset)
+            for i in dkeys
+                current_min = Inf
+                key = nothing
+                for j in zkeys
+                    if distanceFunc(i,j) < current_min
+                        current_min = distanceFunc(i,j)
+                        key = j
+                    end
                 end
+                haskey(v[k],key) ? v[k][key] = push!(v[k][key],i) : v[k][key] = [i]
             end
-            haskey(v[k],key) ? v[k][key] = push!(v[k][key],i) : v[k][key] = [i]
-        end
-        result = 0
-        for i in zkeys
-            if haskey(v[k],i)
-                for j in v[k][i]
-                    result += *(P[j],(^(abs(dataset[j]-z[k][i]),order)))
-                end
-            end 
-        end
-        z2 = Dict()
-        temp = Inf
-        key = nothing
-        for i in keys(v[k])
-            for j in dkeys
-                if temp > sum(distanceFunc.(v[k][i],j))  
-                    temp = sum(distanceFunc.(v[k][i],j))
-                    key = j
-                end
+            result = 0
+            for i in zkeys
+                if haskey(v[k],i)
+                    for j in v[k][i]
+                        result += *(P[j],(^(distanceFunc(i,j),order)))
+                    end
+                end 
             end
-            push!(z2, key => dataset[key])
+            z2 = Dict()
             temp = Inf
             key = nothing
+            for i in keys(v[k])
+                for j in v[k][i]
+                    if temp > sum(order .^ distanceFunc.(v[k][i],j))  
+                        temp = sum(order .^ distanceFunc.(v[k][i],j))
+                        key = j
+                    end
+                end
+                push!(z2, key => dataset[key])
+                temp = Inf
+                key = nothing
+            end
+            push!(z,z2)
+            isTrue = result < d[k]
+            k = k+1
+            d0 = result
+            #result < d[k] ? inner(k+1,result) : (z[k-1] , v[k-1])
         end
-        push!(z,z2)
-        result < d[k] ? inner(k+1,result) : (z[k-1] , v[k-1])
+        (z[k-1],v[k-1])
     end
     (output,probability) = inner(1,Inf)
     final = Dict()
@@ -140,5 +154,6 @@ function wassersteinMethod(dataset,samples,P,order)
     end
     final
 end
+
 
 end
