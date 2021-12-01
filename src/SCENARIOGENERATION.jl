@@ -3,7 +3,7 @@ using Random
 using Clustering
 using LinearAlgebra
 
-export sampler, sampling, kclusterMethod, wassersteinCall
+export sampler, sampling, kclusterMethod, wassersteinCall, samplingMethod
 
 """"finds the value closest to x in a"""
 #=function searchsortednearest(a,x) 
@@ -19,13 +19,12 @@ export sampler, sampling, kclusterMethod, wassersteinCall
     end
  end =#
 
-function searchsortednearest(a,x) 
-    result = Dict()
+function searchsortednearest(a,x,n) 
+    result = 0
     d = Inf
-    akeys = keys(a)
-    for i in akeys
-        if abs(x-a[i])<d
-            d = abs(x-a[i])
+    for i in 1:n
+        if norm((x-a[:,i]),2) < d
+            d = norm(x-a[:,i],2)
             result = i
         end
     end
@@ -60,15 +59,36 @@ function sampling(dataset,samples)
     sample_list
 end
 
+function samplingMethod(dataset,samples)
+    sample = sampling(dataset,samples)
+    new_sample = Dict()
+    for i in keys(sample)
+        push!(new_sample ,i => (sample[i],1/samples))
+    end
+    new_sample
+end
+
+getType(s) = typeof(Float64.(1:length(s[2])))
 
 """Gives kcluster of input dataset using Clustering.jl"""
 function kclusterMethod(dataset, samples) 
+    n = length(dataset)
+    w = length(popfirst!(collect(values(dataset))))
     result = Dict()
-    #new_dataset = sampling(dataset,samples)
-    centers = (kmeans(reshape(convert.(Float,collect(values(dataset))),1,length(dataset)),samples)).centers
-    for i in centers
-        center = searchsortednearest(dataset,i) #returns closest real key.
-        result[center] = dataset[center]
+    m = zeros(w,n)
+    t = 1
+    keymap = Dict()
+    for i in keys(dataset)
+        push!(keymap, t => i)
+        t+=1
+    end
+    for i in 1:n for j in 1:w m[j,i] = dataset[keymap[i]][j] end end
+    means = kmeans(m,samples)
+    centers = means.centers
+    nr = means.counts
+    for i in 1:samples
+        center = searchsortednearest(m,centers[:,i],n) #returns closest real key.
+        result[keymap[center]] = (dataset[keymap[center]],nr[i]/n)
     end
     result
 end 
@@ -155,5 +175,6 @@ function wassersteinMethod(dataset,samples,P,order)
     final
 end
 
-
 end
+
+
