@@ -5,20 +5,6 @@ using LinearAlgebra
 
 export sampler, sampling, kclusterMethod, wassersteinCall, samplingMethod
 
-""""finds the value closest to x in a"""
-#=function searchsortednearest(a,x) 
-    b = sort(a)
-    i = searchsortedfirst(b,x) #Julia function that finds first value in a larger than x
-    if (i==1); return b[i]; end #no smaller value, returns the smallest value in a
-    if (i>length(b)); return b[length(b)]; end #no larger value, returns the largest value in a
-    if (b[i]==x); return b[i]; end #exact match, return a[i] = x
-    if (abs(b[i]-x) < abs(b[i-1]-x)) #compares difference between a[i] and a[i-1] as x lies between them and returns the closer one.
-       return b[i]
-    else
-       return b[i-1]
-    end
- end =#
-
 """Find closest real value to cluster center"""
 function searchsortednearest(a,x,n) 
     result = 0
@@ -31,19 +17,6 @@ function searchsortednearest(a,x,n)
     end
     result
  end
-
- #=
- function distanceBetweenPoints(dataset) #O time of n squared, problem
-    distances = Dict()
-    dkeys = keys(dataset)
-    for i in dkeys
-        for j in dkeys
-            push!(distances,(i,j) => abs(dataset[i]-dataset[j]))
-        end
-    end
-    distances
- end
- =#
 
 """Random Sampler v$(1) using Random.jl function"""
 sampler(dataset, samples) = rand(dataset,samples)    #Takes random input as vector v and return sample of size n, part of Random.jl package.
@@ -70,7 +43,6 @@ function samplingMethod(dataset,samples)
     new_sample #returns the scenarios
 end
 
-#getType(s) = typeof(Float64.(1:length(s[2])))
 
 """Gives kcluster of input dataset using Clustering.jl"""
 function kclusterMethod(dataset, samples) 
@@ -107,8 +79,6 @@ function createEqualProbability(dataset)
     result
 end
 
-
-#takeSum(a,b) = sum(abs(a.-b))
 
 """Calculates the distance between keys on the dataset"""
 distanceValue(a,b,order,dataset) = ^((norm(dataset[a]-dataset[b],2)),order)
