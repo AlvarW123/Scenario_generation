@@ -34,28 +34,14 @@ function getTech(location)
     CSV.File(location*"gen_technology.csv")
 end
 
-#=
-function model(scenarios,location) 
-    transmission = getTransmission(location)
-    tech = getTech(location)
-    d5 = Model(with_optimizer(Cbc.Optimizer,loglevel = 0))
-    @variable(d5,g[1:6]>=0) #each technologie.
-    @variable(d6,c[1:11]===1) #each country, helps with keeping track of what is produced where.
-
-    @objective(d5,Min,4*x[1]+x[2])
-end
-=#
-
 function getDemand(scenarios) 
     book = Dict()
-    #for i in keys(scenarios) push!(book,i => vcat(scenarios[i][1][:,1]',scenarios[i][1][:,3]',scenarios[i][1][:,5]',scenarios[i][1][:,7]',scenarios[i][1][:,9]',scenarios[i][1][:,11]',scenarios[i][1][:,13]',scenarios[i][1][:,15]',scenarios[i][1][:,17]',scenarios[i][1][:,19]',scenarios[i][1][:,21]')) end
     for i in keys(scenarios) push!(book,i => [scenarios[i][1][1],scenarios[i][1][3],scenarios[i][1][5],scenarios[i][1][7],scenarios[i][1][9],scenarios[i][1][11],scenarios[i][1][13],scenarios[i][1][15],scenarios[i][1][17],scenarios[i][1][19],scenarios[i][1][21]]) end
     book
 end
 
 function getWind(scenarios) 
     book = Dict()
-    #for i in keys(scenarios) push!(book,i => vcat(scenarios[i][1][:,2]',scenarios[i][1][:,4]',scenarios[i][1][:,6]',scenarios[i][1][:,8]',scenarios[i][1][:,10]',scenarios[i][1][:,12]',scenarios[i][1][:,14]',scenarios[i][1][:,16]',scenarios[i][1][:,18]',scenarios[i][1][:,20]',scenarios[i][1][:,22]')) end
     for i in keys(scenarios) push!(book,i => [scenarios[i][1][2],scenarios[i][1][4],scenarios[i][1][6],scenarios[i][1][8],scenarios[i][1][10],scenarios[i][1][12],scenarios[i][1][14],scenarios[i][1][16],scenarios[i][1][18],scenarios[i][1][20],scenarios[i][1][22]]) end
     book
 end
@@ -78,53 +64,6 @@ function getNr(str)
     parse(Int,number)
 end
 
-
-#support functions for optimization.
-#=
-function gSum(g,i,s) 
-    sum = 0
-    for j in 1:6 sum += g[i,j,s] end
-    sum
-end
-
-function tSumIn(t,i,s) 
-    sum = 0
-    for j in 1:6 sum += t[i,j,s] end
-    sum
-end
-
-function tSumOut(t,j,s)
-    sum = 0
-    for i in 1:11 sum += t[i,j,s] end
-    sum
-end
-
-function c_vf_cost(z,x,tech,index) 
-    sum = 0
-    for i in 1:11 for j in 1:6 sum += tech[index[j],3] + x[i,j]*tech[index[j],4] end end
-    sum
-end
-
-function transmissionCost(a,c,y)
-    sum = 0
-    for i in 1:11 for j in 1:11 if i<j sum += y[i,j]*(c[2] + a[i,j]*c[1]) end end end
-    sum/1000
-end
-
-function scenarioSpecific(sK, sN, g, t,c, tech, g_i, u, O) 
-    sum = 0
-    for s in sk 
-       sum1 = 0
-       sum2 = 0
-       sum3 = 0
-       for i in 1:11 for j in 1:6 sum1 += (g[i,j,sN[s]]*(tech[g_i[j],6]+tech[g_i[j],7])) end end
-       for i in 1:11 for j in 1:11 if i<j sum2 += t[i,j]*c[3] end end end
-       for j in 1:11 sum3 += O*u[sN[s],j] end
-       sum += (sum1 + sum2 + sum3)
-    end
-    sum
-end
-=#
 function testScenario(k)
     println("Hallo?")
     location = "C:\\Users\\wilha\\OneDrive\\Documents\\Julia Experiments\\Data\\"
@@ -149,23 +88,16 @@ function testScenario(k)
     O = 1000000 #limit for
     for i in sKeys push!(probability, i => scenarios[i][2]) end #separates the probability from the scenario
     (available_transmissions,constants) = getTransmission(location)
-    #tech = getTech(location)
-    #g_index = [1,4,5,6,7,8]
     l = []
     for i in 1:11 for j in 1:11 if !haskey(available_transmissions,(i,j)) && !haskey(available_transmissions,(j,i)) push!(l, (i,j)) end  end end #creates network of available transmissions
     investment_cost = [114963.42,  235046.78	, 414140.92, 100761.61, 72041.15, 41020.57] #investment costs
     generation_cost = [0,15.63, 11.82, 23.17, 39.77, 58.70] #generation costs
     transmission_cost = 32 #transmission cost
     d5 = Model(Gurobi.Optimizer) #initialize model
-    #set_optimizer_attribute(d5, "TimeLimit", 100)
-    #set_optimizer_attribute(d5, "Presolve", 0)
-    #println(constants[1])
     @variable(d5,x[1:11 , 1:6]>=0.0) #investment in each technologie in each country
-    #@variable(d5,z[1:11 , 1:6],Bin) #decision to invest
     @variable(d5,g[1:11, 1:6 ,1:n]>=0.0) #production at each scenario
     @variable(d5,y[1:11 , 1:11],Bin) #decision to transmit
     @variable(d5,t[1:11, 1:11 ,1:n],upper_bound=10000,lower_bound=0) #transmission for each scenario
-    #@variable(d5,t[1:11, 1:11 ,1:n]>=0)
     @variable(d5,u[1:n, 1:11]>=0.0) #unmet demand of each scenario
     
     @constraint(d5,
@@ -178,20 +110,9 @@ function testScenario(k)
     @constraint(d5,  sum(x[i,1] for i in 1:11)>= 0.32*sum(x[i,j] for j = 1:6 for i in 1:11)) #total renewable has to equal 32% of total production
     @constraint(d5, [i = 1:11, s = 1:n, j = 1:6] , x[i,j] >= g[i,j,s]) #capacity has to be greater than used 
     @constraint(d5, [i = 1:11, s = 1:n] ,*(wind[sKeyNr[s]][i],x[i,1]) >= g[i,1,s]) #renewable limit
-    #@constraint(d5, [i = 1:11, j = 1:6], x[i,j] <= *(M,z[i,j])) 
     @constraint(d5, [q = l], y[q[1],q[2]] == 0) #sets transmissions beteween unconnected regions to zero
     @constraint(d5, [i = 1:11, j = 1:11, s = 1:n],t[i,j,s] <= *(M,y[i,j])) 
-    #@constraint(d5, [i = 1:11, j = 1:11, s = 1:n],t[i,j,s] <= *(M,y[j,i])) 
-    #@constraint(d5, [i = collect(keys(available_transmissions))],y[i[1],i[2]] == y[i[2],i[1]])
     @constraint(d5, [i=1:11,j=1:11], y[i,j] == y[j,i]) #transmissions to and from have to both be available/unavailable
-
-    #@objective(d5,Min,
-    #    sum(*(z[i,j],tech[g_index[j]][3],1000) + *(x[i,j],tech[g_index[j]][4],1000) for j = 1:6 for i = 1:11) +
-    #    sum(*(y[i[1],i[2]],(constants[2]) + *(available_transmissions[i],constants[1])) for i = keys(available_transmissions))+
-    #    sum(*(probability[sKeyNr[s]],sum((*(g[i,j,s],tech[g_index[j]][5]+tech[g_index[j]][6])/tech[g_index[j]][7]) for i = 1:11 for j = 1:6) 
-    #    + sum(*(t[i,j,s],constants[3]) for i = 1:11 for j = 1:11) +
-    #     sum(*(O,u[s,i]) for i = 1:11)) for s = 1:n)
-    #)
 
     @objective(d5,Min,
        sum( *(x[i,j],investment_cost[j]) for j = 1:6 for i = 1:11) +
@@ -201,18 +122,14 @@ function testScenario(k)
         sum(*(O,u[s,i]) for i = 1:11)) for s = 1:n)
     ) #minimization problem
 
-        #sum(*(probability[sKeyNr[s]],sum(*(t[i,j,s],constants[3]) for i = 1:11 for j = 1:11)) for s = 1:n) +
-        #sum(*(probability[sKeyNr[s]],sum(*(1,u[s,i],1000) for i = 1:11)) for s = 1:n)
 
     optimize!(d5) #optimizer
     o_value = JuMP.objective_value(d5,result = 1)
     x_value = JuMP.value.(x)
-    #z_value = JuMP.value.(z)
     y_value = JuMP.value.(y)
     t_value = JuMP.value.(t)
     g_value = JuMP.value.(g)
     u_value = JuMP.value.(u) #saves different results
-    #plotResult(x_value,t_value,y_value,g_value,n)
     scenarios2 = samplingMethod(book,8760)
     demand2 = getDemand(scenarios2)
     wind2 = getWind(scenarios2)
@@ -225,14 +142,12 @@ function testScenario(k)
         a = Model(Gurobi.Optimizer)
 
         @variable(a,x[1:11 , 1:6]) #investment in each technologie in each country
-        #@variable(a,z[1:11 , 1:6]) #decision to invest
         @variable(a,g[1:11, 1:6]>=0.0) #production at each scenario
         @variable(a,y[1:11 , 1:11]) #decision to transmit
         @variable(a,t[1:11, 1:11],upper_bound=10000,lower_bound=0) #transmission for each scenario
         @variable(a,u[1:11]>=0.0) #unmet demand of each scenario
 
         for i in 1:11 for j in 1:6 JuMP.fix(x[i,j],x_value[i,j]) end end
-        #for i in 1:11 for j in 1:6 JuMP.fix(z[i,j],z_value[i,j]) end end
         for i in 1:11 for j in 1:11 JuMP.fix(y[i,j],y_value[i,j]) end end
 
 
@@ -246,7 +161,6 @@ function testScenario(k)
         @constraint(a, [i = 1:11, j = 1:6] , x[i,j] >= g[i,j])
         @constraint(a, [i = 1:11] ,*(wind2[s][i],x[i,1]) >= g[i,1]) 
         @constraint(a, [i = 1:11, j = 1:11],t[i,j] <= *(M,y[i,j])) 
-        #*(z[i,j],tech[g_index[j]][3],1000)/tech[g_index[j]][7] + 
         @objective(a,Min,
             sum(*(x[i,j],investment_cost[j]) for j = 1:6 for i = 1:11) +
             sum(*(y[i[1],i[2]],*(available_transmissions[i],transmission_cost)) for i = keys(available_transmissions))+
@@ -268,8 +182,6 @@ function testScenario(k)
     plotResult(x_value,t_value,y_value,g_value,u_value,n)
     println(o_value)
     println(o_value_2)
-    #println(wassersteinDistance(scenarios,scenarios2))
-    #println(sumUnmet)
 end
 
 
@@ -285,7 +197,6 @@ function print_matrix_2d(o,y,x,s)
         for j in 1:x
             m[i,j] = o[i,j]
             print(" & ")
-            #j === x ? println(round(o[i,j],digits=2)) : print(round(o[i,j],digits=2))
             print(round(o[i,j],digits=2))
         end
         println("\\\\")
@@ -314,26 +225,6 @@ function std_3d(o,s,k,x,y)
     end
     m
 end
-
-#=
-function graph(m,x,y) 
-    n = []
-    nodes = Int64[]
-    for i in 1:y
-        t = Int64[]
-        for j in 1:x
-             if m[i,j] > 0 push!(t,j) end
-        end
-        if !isempty(t) 
-            push!(n,t) 
-            push!(nodes,i)
-        end
-    end
-    println(nodes)
-    println(n)
-   (n,nodes)
-end
-=#
 
 function print_gas(x,avg,std)
 println("")
@@ -373,7 +264,6 @@ function plotResult(x,t,y,g,u,k)
     print_matrix_2d(m,11,6,"Print of average used capacity")
     print_matrix_2d(n,11,6,"Print of std for used capacity")
     print_gas(x2,m,n)
-    #(y3, nodes) = graph(y2,11,11)
     graphplot(y2, names=string.(1:11), nodeshape=:circle,curvature_scalar=0.2,self_edge_size=4.5, nodesize = 0.5)
     savefig("Wasserstein")
 end 
